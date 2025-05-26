@@ -1,9 +1,16 @@
 import { createPike13Client, createReportingClient } from "./api.js";
+import { sendToGoHighLevel } from "./sendToGoHighLevel.js";
 import fs from "fs/promises";
+
+// Optional test-only email
+const TEST_EMAIL = process.env.TEST_EMAIL || null;
 
 // Token helpers
 export async function saveToken(token) {
-  await fs.writeFile("./token.json", JSON.stringify({ accessToken: token }, null, 2));
+  await fs.writeFile(
+    "./token.json",
+    JSON.stringify({ accessToken: token }, null, 2)
+  );
 }
 
 export async function loadToken() {
@@ -16,7 +23,7 @@ export async function loadToken() {
 }
 
 // Main logic
-export async function runMainLogic(accessToken) {
+export async function runMainLogic(accessToken, testEmail = TEST_EMAIL) {
   const coreClient = createPike13Client(accessToken);
   const reportingClient = createReportingClient(accessToken);
 
@@ -29,11 +36,20 @@ export async function runMainLogic(accessToken) {
     },
   });
 
-  const people = peopleRes.data.people;
+  let people = peopleRes.data.people;
+  if (testEmail) {
+    people = people.filter((p) => p.email === testEmail);
+    console.log(
+      `🧪 Test mode: filtered to ${people.length} person(s) matching ${testEmail}`
+    );
+  }
+
   console.log(`✅ Retrieved ${people.length} people`);
-  people.slice(0, 5).forEach((p) =>
-    console.log(`- ${p.first_name} ${p.last_name} (${p.email})`)
-  );
+  people
+    .slice(0, 5)
+    .forEach((p) =>
+      console.log(`- ${p.first_name} ${p.last_name} (${p.email})`)
+    );
 
   console.log("📊 Fetching client report from Reporting API v3...");
   const reportRes = await reportingClient.post("/reports/clients/queries", {
@@ -47,13 +63,7 @@ export async function runMainLogic(accessToken) {
           "last_visit_date",
           "days_since_last_visit",
         ],
-        filter: [
-          {
-            field: "days_since_last_visit",
-            op: "gt",
-            value: 10,
-          },
-        ],
+        filter: [["gt", "days_since_last_visit", 10]],
       },
     },
   });
@@ -68,9 +78,22 @@ export async function runMainLogic(accessToken) {
 
   console.log(`🗂 Retrieved ${rows.length} inactive clients`);
 
-  // Optional: send data to HighLevel
-  for (const row of rows) {
-    // Call your existing logic here
-    // await sendToGoHighLevel(row);  ← you can uncomment and import later
+  const filteredRows = testEmail
+  ? rows.filter((c) => c.values?.email === testEmail)
+  : rows;
+
+  for (const row of filteredRows) {
+  const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
+
+  if (!email || !full_name || days_since_last_visit === undefined) {
+    console.warn(`⚠️ Skipping incomplete client:`, row);
+    continue;
   }
+
+  await sendToGoHighLevel({
+    email,
+    full_name,
+    days_since_last_visit,
+  });
+}
 }

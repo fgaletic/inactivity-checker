@@ -6,6 +6,9 @@ import { saveToken, loadToken, runMainLogic } from "./logic.js";
 import { startScheduledTasks } from "./scheduler.js";
 
 dotenv.config();
+
+const TEST_EMAIL = "filip.galetic@gmail.com";
+
 const app = express();
 const PORT = 3000;
 
@@ -46,7 +49,7 @@ app.get("/callback", async (req, res) => {
     await saveToken(accessToken);
     console.log("🎉 Access Token saved.");
     res.send("✅ Authorization complete! You can close this window.");
-    await runMainLogic(accessToken);
+    await runMainLogic(token, TEST_EMAIL);
   } catch (err) {
     console.error("❌ Token exchange failed:", err.response?.data || err.message);
     if (!res.headersSent) res.send("Error exchanging token.");
