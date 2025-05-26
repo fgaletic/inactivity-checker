@@ -2,10 +2,10 @@
   "name": "method3-inactivity-checker",
   "version": "1.0.0",
   "main": "index.js",
-"scripts": {
-  "start": "node server.js",
-  "test": "echo \"Error: no test specified\" && exit 1"
-},
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -15,6 +15,7 @@
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "node-cron": "^4.0.7",
     "open": "^10.1.2"
   },
   "type": "module"
