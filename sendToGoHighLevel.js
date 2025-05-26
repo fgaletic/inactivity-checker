@@ -23,22 +23,44 @@ export async function sendToGoHighLevel(client) {
   }
 
   try {
-    const res = await axios.post(
-      `https://rest.gohighlevel.com/v1/contacts/`,
-      payload,
+    // Check if contact already exists
+    const searchRes = await axios.get(
+      `https://rest.gohighlevel.com/v1/contacts/lookup?email=${encodeURIComponent(client.email)}`,
       {
         headers: {
           Authorization: `Bearer ${GHL_API_KEY}`,
-          "Content-Type": "application/json",
         },
       }
     );
 
-    console.log(`📬 Sent to GHL: ${client.full_name} (${client.email})`);
-    return res.data;
+    if (searchRes.data && searchRes.data.contact) {
+      console.log(`⚠️ Contact already exists in GHL: ${client.email}`);
+      return;
+    }
+
+    try {
+      const res = await axios.post(
+        `https://rest.gohighlevel.com/v1/contacts/`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${GHL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log(`📬 Sent to GHL: ${client.full_name} (${client.email})`);
+      return res.data;
+    } catch (error) {
+      console.error(
+        `❌ Failed to send ${client.email} to GHL:`,
+        error.response?.data || error.message
+      );
+    }
   } catch (error) {
     console.error(
-      `❌ Failed to send ${client.email} to GHL:`,
+      `❌ Error checking if contact exists for ${client.email}:`,
       error.response?.data || error.message
     );
   }
