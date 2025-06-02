@@ -165,7 +165,7 @@ for (const row of filteredRows) {
     continue;
   }
 
-  console.log(`✅ Would send to ${email} (${full_name})`);
+  // console.log(`✅ Would send to ${email} (${full_name})`);
   await sendToGoHighLevel({
     email,
     full_name,
@@ -187,7 +187,7 @@ if (!hasPlan) {
   continue;
 }
 
-console.log(`✅ Would send to ${email} (${full_name})`);
+// console.log(`✅ Would send to ${email} (${full_name})`);
 await sendToGoHighLevel({
   email,
   full_name,
