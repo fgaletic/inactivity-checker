@@ -8,14 +8,19 @@ export async function sendToGoHighLevel(client) {
   const GHL_API_KEY = process.env.GHL_API_KEY;
   const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 
-  const payload = {
-    email: client.email,
-    name: client.full_name,
-    customField: {
-      daysSinceLastVisit: client.days_since_last_visit,
-    },
-    locationId: GHL_LOCATION_ID,
-  };
+  console.log("Sending with custom field:", {
+  "dayssincelastvisit": client.days_since_last_visit,
+});
+
+const payload = {
+  email: client.email,
+  name: client.full_name,
+  customField: {
+    "dayssincelastvisit": client.days_since_last_visit,
+  },
+  locationId: GHL_LOCATION_ID,
+  tags: ["Pike13 Inactive"],
+};
 
   if (DRY_RUN) {
     console.log("🧪 DRY RUN: Would send to GHL:", payload);
