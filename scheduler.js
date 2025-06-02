@@ -8,8 +8,8 @@ export async function startScheduledTasks() {
     return;
   }
 
-  cron.schedule("0 8 * * 0", async () => {
-    console.log("🕗 [Cron] Weekly inactive client sync started...");
+  cron.schedule("0 8 * * *", async () => {
+    console.log("🕗 [Cron] Daily inactive client sync started...");
     try {
       await runMainLogic(token);
     } catch (err) {
@@ -17,5 +17,5 @@ export async function startScheduledTasks() {
     }
   });
 
-  console.log("✅ Scheduler initialized: every Sunday at 8am");
+  console.log("✅ Scheduler initialized: every day at 8am");
 }
