@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sync Inactive Clients</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sync Inactive Clients</h1>
+  <button id="syncButton">Sync Now</button>
+  <p id="status"></p>
+
+  <script>
+    document.getElementById("syncButton").addEventListener("click", async () => {
+      const status = document.getElementById("status");
+      status.textContent = "Syncing...";
+
+      try {
+        const response = await fetch("http://localhost:3000/sync-inactive-clients", {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          status.textContent = "Inactive clients synced successfully.";
+        } else {
+          const errorText = await response.text();
+          status.textContent = `Error: ${errorText}`;
+        }
+      } catch (error) {
+        status.textContent = "Failed to sync inactive clients.";
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>

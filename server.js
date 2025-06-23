@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import open from "open";
 import axios from "axios";
+import cors from "cors";
 import { saveToken, loadToken, runMainLogic } from "./logic.js";
 import { startScheduledTasks } from "./scheduler.js";
 
@@ -23,6 +24,8 @@ const SUBDOMAIN = "method3fitness";
 const AUTHORIZE_URL = `https://${SUBDOMAIN}.pike13.com/oauth/authorize?response_type=code&client_id=${PIKE13_CLIENT_ID}&redirect_uri=${encodeURIComponent(
   PIKE13_REDIRECT_URI
 )}`;
+
+app.use(cors());
 
 app.get("/", (req, res) => {
   res.send(`<a href="${AUTHORIZE_URL}">Authorize with Pike13</a>`);
@@ -53,6 +56,21 @@ app.get("/callback", async (req, res) => {
   } catch (err) {
     console.error("❌ Token exchange failed:", err.response?.data || err.message);
     if (!res.headersSent) res.send("Error exchanging token.");
+  }
+});
+
+app.post("/sync-inactive-clients", async (req, res) => {
+  try {
+    const token = await loadToken();
+    if (!token) {
+      return res.status(400).send("No token found. Please authorize first.");
+    }
+
+    await runMainLogic(token);
+    res.status(200).send("Inactive clients synced successfully.");
+  } catch (err) {
+    console.error("❌ Failed to sync inactive clients:", err);
+    res.status(500).send("Failed to sync inactive clients.");
   }
 });
 
