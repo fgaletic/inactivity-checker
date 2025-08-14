@@ -8,7 +8,7 @@ import { startScheduledTasks } from "./scheduler.js";
 
 dotenv.config();
 
-const TEST_EMAIL = "filip.galetic@gmail.com";
+const TEST_EMAIL = process.env.TEST_EMAIL || "test@example.com";
 
 const app = express();
 const PORT = 3000;
