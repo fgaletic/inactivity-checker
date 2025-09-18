@@ -87,28 +87,20 @@ export async function runMainLogic(accessToken, testEmail = TEST_EMAIL) {
   console.log("📡 Calling Core API /desk/people...");
   const peopleRes = await coreClient.get("/desk/people", {
     params: {
-      per_page: 50,
+      per_page: 100, // aumentar el rango
       is_member: true,
       sort: "-updated_at",
     },
   });
 
-  let people = peopleRes.data.people;
+  let people = peopleRes.data.people || [];
   if (testEmail) {
     people = people.filter((p) => p.email === testEmail);
-    console.log(
-      `🧪 Test mode: filtered to ${people.length} person(s) matching ${testEmail}`
-    );
+    console.log(`🧪 Test mode: ${people.length} match for ${testEmail}`);
   }
-
   console.log(`✅ Retrieved ${people.length} people`);
-  people
-    .slice(0, 5)
-    .forEach((p) =>
-      console.log(`- ${p.first_name} ${p.last_name} (${p.email})`)
-    );
 
-  console.log("📊 Fetching client report from Reporting API v3...");
+  console.log("📊 Fetching inactive clients from Reporting API v3...");
   const reportRes = await reportingClient.post("/reports/clients/queries", {
     data: {
       type: "report_queries",
@@ -120,78 +112,48 @@ export async function runMainLogic(accessToken, testEmail = TEST_EMAIL) {
           "last_visit_date",
           "days_since_last_visit",
         ],
-        filter: [["gt", "days_since_last_visit", 10]],
+        filter: [["gt", "days_since_last_visit", 10]], // >10 días inactivos
       },
     },
   });
 
-  const rows = reportRes.data?.data?.attributes?.rows;
-
-  if (!rows) {
-    console.error("❌ No rows returned from the report API");
-    console.dir(reportRes.data, { depth: null });
-    return;
-  }
-
+  const rows = reportRes.data?.data?.attributes?.rows || [];
   console.log(`🗂 Retrieved ${rows.length} inactive clients`);
 
+  // Filtrar si hay testEmail
   const filteredRows = testEmail
-  ? rows.filter((c) => c.values?.email === testEmail)
-  : rows;
+    ? rows.filter((c) => c[1] === testEmail)
+    : rows;
 
-// Remove "Pike13 Inactive" tag from recently active users
-for (const row of rows) {
-  const [_, email, full_name, __, days_since_last_visit] = row;
-
-  if (!email || !full_name || days_since_last_visit === undefined) continue;
-
-  if (days_since_last_visit <= 10) {
-    await removeInactiveTagIfActive(email, full_name);
-  }
-}
-
-// Proceed with sending inactive members to GoHighLevel
-for (const row of filteredRows) {
-  const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
-
-  if (!email || !full_name || days_since_last_visit === undefined) {
-    console.warn(`⚠️ Skipping incomplete client:`, row);
-    continue;
+  // 1. Quitar "Pike13 Inactive" tag si han vuelto (<10 días)
+  for (const row of rows) {
+    const [_, email, full_name, __, days_since_last_visit] = row;
+    if (!email || !full_name) continue;
+    if (days_since_last_visit <= 10) {
+      await removeInactiveTagIfActive(email, full_name);
+    }
   }
 
-  const hasPlan = await checkPlans(reportingClient, person_id);
-  if (!hasPlan) {
-    console.log(`🚫 Skipping ${email} - no valid plan`);
-    continue;
+  // 2. Enviar a GHL los que cumplen
+  for (const row of filteredRows) {
+    const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
+
+    if (!email || !full_name || days_since_last_visit === undefined) {
+      console.warn(`⚠️ Skipping incomplete client:`, row);
+      continue;
+    }
+
+    const hasPlan = await checkPlans(reportingClient, person_id);
+    if (!hasPlan) {
+      console.log(`🚫 Skipping ${email} - no valid plan`);
+      continue;
+    }
+
+    console.log(`✅ Sending ${email} (${full_name}) to GoHighLevel`);
+    await sendToGoHighLevel({
+      email,
+      full_name,
+      days_since_last_visit,
+    });
   }
-
-  // console.log(`✅ Would send to ${email} (${full_name})`);
-  await sendToGoHighLevel({
-    email,
-    full_name,
-    days_since_last_visit,
-  });
-}
-
-for (const row of filteredRows) {
-  const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
-
-  if (!email || !full_name || days_since_last_visit === undefined) {
-    console.warn(`⚠️ Skipping incomplete client:`, row);
-    continue;
-  }
-
-const hasPlan = await checkPlans(reportingClient, person_id);
-if (!hasPlan) {
-  console.log(`🚫 Skipping ${email} - no valid plan`);
-  continue;
-}
-
-// console.log(`✅ Would send to ${email} (${full_name})`);
-await sendToGoHighLevel({
-  email,
-  full_name,
-  days_since_last_visit,
-});
-}
 }
