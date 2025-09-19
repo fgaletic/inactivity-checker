@@ -61,16 +61,16 @@ const payload = {
     try {
       const searchRes = await retryApiCall(async () => {
         return await axios.get(
-          `https://rest.gohighlevel.com/v1/contacts/lookup?email=${encodeURIComponent(client.email)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${GHL_API_KEY}`,
-            },
-          }
-        );
+      `https://rest.gohighlevel.com/v1/contacts/lookup?email=${encodeURIComponent(client.email)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${GHL_API_KEY}`,
+        },
+      }
+    );
       });
 
-      if (searchRes.data && searchRes.data.contact) {
+    if (searchRes.data && searchRes.data.contact) {
         contactExists = true;
         existingContact = searchRes.data.contact;
       }
@@ -120,24 +120,24 @@ const payload = {
       try {
         const res = await retryApiCall(async () => {
           return await axios.post(
-            `https://rest.gohighlevel.com/v1/contacts/`,
-            payload,
-            {
-              headers: {
-                Authorization: `Bearer ${GHL_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
+        `https://rest.gohighlevel.com/v1/contacts/`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${GHL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
         });
 
         console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
-        return res.data;
-      } catch (error) {
-        console.error(
+      return res.data;
+    } catch (error) {
+      console.error(
           `❌ Failed to create ${client.email} in GHL after retries:`,
-          error.response?.data || error.message
-        );
+        error.response?.data || error.message
+      );
         console.error(`   Full error details:`, error.response?.status, error.response?.statusText);
         
         // Log the payload that failed for debugging
