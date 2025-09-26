@@ -80,7 +80,7 @@ app.post("/sync-inactive-clients", async (req, res) => {
 });
 
 app.listen(PORT, async () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT} - ${new Date().toISOString()}`);
   
   try {
     const token = await loadToken();
