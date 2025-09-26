@@ -8,8 +8,11 @@ export async function startScheduledTasks() {
     return;
   }
 
-  cron.schedule("0 8 * * *", async () => {
-    console.log("🕗 [Cron] Daily inactive client sync started...");
+  // Schedule for 8 AM ET (Eastern Time)
+  // ET is UTC-5 (EST) or UTC-4 (EDT), so 8 AM ET = 1 PM UTC (EST) or 12 PM UTC (EDT)
+  // Using 13:00 UTC to cover EST (most common case)
+  cron.schedule("0 13 * * *", async () => {
+    console.log("🕗 [Cron] Daily inactive client sync started at 8 AM ET...");
     try {
       await runMainLogic(token);
     } catch (err) {
@@ -17,5 +20,5 @@ export async function startScheduledTasks() {
     }
   });
 
-  console.log("✅ Scheduler initialized: every day at 8am");
+  console.log("✅ Scheduler initialized: every day at 8 AM ET (1 PM UTC)");
 }

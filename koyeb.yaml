@@ -1,0 +1,34 @@
+name: inactivity-checker
+services:
+  - name: inactivity-checker
+    image: koyeb/inactivity-checker:latest
+    ports:
+      - port: 3000
+        protocol: http
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: GHL_API_KEY
+        secret: ghl-api-key
+      - key: GHL_LOCATION_ID
+        secret: ghl-location-id
+      - key: PIKE13_API_TOKEN
+        secret: pike13-api-token
+      - key: PIKE13_BASE_URL
+        secret: pike13-base-url
+      - key: TEST_EMAIL
+        value: ""
+      - key: DRY_RUN
+        value: "false"
+    regions:
+      - us-east-1
+    instance:
+      type: nano
+    healthcheck:
+      path: /
+      port: 3000
+      interval: 30s
+      timeout: 10s
+      retries: 3
