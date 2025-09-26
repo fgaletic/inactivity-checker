@@ -21,14 +21,19 @@ const {
 
 const SUBDOMAIN = "method3fitness";
 
-const AUTHORIZE_URL = `https://${SUBDOMAIN}.pike13.com/oauth/authorize?response_type=code&client_id=${PIKE13_CLIENT_ID}&redirect_uri=${encodeURIComponent(
-  PIKE13_REDIRECT_URI
-)}`;
+// Only create AUTHORIZE_URL if we have the required env vars
+const AUTHORIZE_URL = PIKE13_CLIENT_ID && PIKE13_REDIRECT_URI 
+  ? `https://${SUBDOMAIN}.pike13.com/oauth/authorize?response_type=code&client_id=${PIKE13_CLIENT_ID}&redirect_uri=${encodeURIComponent(PIKE13_REDIRECT_URI)}`
+  : null;
 
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send(`<a href="${AUTHORIZE_URL}">Authorize with Pike13</a>`);
+  if (AUTHORIZE_URL) {
+    res.send(`<a href="${AUTHORIZE_URL}">Authorize with Pike13</a>`);
+  } else {
+    res.send("❌ Missing Pike13 environment variables. Please check your configuration.");
+  }
 });
 
 app.get("/callback", async (req, res) => {
@@ -76,16 +81,22 @@ app.post("/sync-inactive-clients", async (req, res) => {
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  const token = await loadToken();
+  
+  try {
+    const token = await loadToken();
 
-  if (token) {
-    console.log("🔐 Using saved token. Skipping login.");
-    await runMainLogic(token);
-    await startScheduledTasks();
-  } else {
-    console.log("🔑 No token found. Please authorize via browser...");
-    if (process.env.NODE_ENV !== 'production') {
-      open(`http://localhost:${PORT}`);
+    if (token) {
+      console.log("🔐 Using saved token. Skipping login.");
+      await runMainLogic(token);
+      await startScheduledTasks();
+    } else {
+      console.log("🔑 No token found. Please authorize via browser...");
+      if (process.env.NODE_ENV !== 'production') {
+        open(`http://localhost:${PORT}`);
+      }
     }
+  } catch (error) {
+    console.error("❌ Error during startup:", error);
+    console.log("🔑 Please authorize via browser...");
   }
 });
