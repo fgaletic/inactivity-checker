@@ -84,6 +84,8 @@ app.listen(PORT, async () => {
     await startScheduledTasks();
   } else {
     console.log("🔑 No token found. Please authorize via browser...");
-    open(`http://localhost:${PORT}`);
+    if (process.env.NODE_ENV !== 'production') {
+      open(`http://localhost:${PORT}`);
+    }
   }
 });
