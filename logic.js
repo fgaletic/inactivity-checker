@@ -15,6 +15,12 @@ export async function saveToken(token) {
 }
 
 export async function loadToken() {
+  // First try environment variable (for cloud deployment)
+  if (process.env.PIKE13_API_TOKEN) {
+    return process.env.PIKE13_API_TOKEN;
+  }
+  
+  // Fallback to local token.json file (for local development)
   try {
     const data = await fs.readFile("./token.json", "utf-8");
     return JSON.parse(data).accessToken;
