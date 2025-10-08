@@ -36,6 +36,14 @@ app.get("/", (req, res) => {
   }
 });
 
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.get("/callback", async (req, res) => {
   const { code } = req.query;
   if (!code) return res.send("Missing auth code");
