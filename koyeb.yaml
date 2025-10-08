@@ -1,7 +1,10 @@
 name: inactivity-checker
 services:
   - name: inactivity-checker
-    image: koyeb/inactivity-checker:latest
+    type: docker
+    docker:
+      dockerfile: Dockerfile
+      target: ""
     ports:
       - port: 3000
         protocol: http
