@@ -6,6 +6,9 @@ import fs from "fs/promises";
 // Optional test-only email
 const TEST_EMAIL = process.env.TEST_EMAIL || null;
 
+// Toggle for plan checking (enabled to test with product_type)
+const SKIP_PLAN_CHECK = false;
+
 // Token helpers
 export async function saveToken(token) {
   await fs.writeFile(
@@ -30,29 +33,29 @@ export async function loadToken() {
 }
 
 const isEligiblePlan = (plan) => {
-  const toBool = (v) => v === true || v === "t";
-  return (
-    toBool(plan.is_available) &&
-    !toBool(plan.is_on_hold) &&
-    !toBool(plan.is_canceled) &&
-    !toBool(plan.is_ended) &&
-    !toBool(plan.is_exhausted)
-  );
+  // Check if they have current plans AND are not on hold
+  // This matches the client's UI logic: "Has Plan on Hold? = No"
+  const hasPlans = plan.current_plans && plan.current_plans.trim().length > 0;
+  const notOnHold = plan.has_plan_on_hold === false;
+  
+  console.log(`🔍 Plan check: hasPlans=${hasPlans}, notOnHold=${notOnHold}, current_plans="${plan.current_plans}", has_plan_on_hold=${plan.has_plan_on_hold}`);
+  
+  return hasPlans && notOnHold;
 };
 
 const checkPlans = async (reportingClient, person_id) => {
   try {
-    const res = await reportingClient.post("/reports/person_plans/queries", {
+    // Use the correct field names from Pike13 documentation
+    const res = await reportingClient.post("/reports/clients/queries", {
       data: {
         type: "report_queries",
         attributes: {
           fields: [
             "person_id",
-            "is_available",
-            "is_on_hold",
-            "is_canceled",
-            "is_ended",
-            "is_exhausted",
+            "current_plans",
+            "current_plan_types", 
+            "current_plan_revenue_category",
+            "has_plan_on_hold",
           ],
           filter: [["eq", "person_id", person_id]],
         },
@@ -60,24 +63,32 @@ const checkPlans = async (reportingClient, person_id) => {
     });
 
     const plans = res.data?.data?.attributes?.rows || [];
+    
+    // Debug: Log the plan details
+    if (plans.length > 0) {
+      console.log(`🔍 Plan data for person_id ${person_id}:`, plans[0]);
+    }
 
     return plans.some((row) => {
       const [
         _person_id,
-        is_available,
-        is_on_hold,
-        is_canceled,
-        is_ended,
-        is_exhausted,
+        current_plans,
+        current_plan_types,
+        current_plan_revenue_category,
+        has_plan_on_hold,
       ] = row;
 
-      return isEligiblePlan({
-        is_available,
-        is_on_hold,
-        is_canceled,
-        is_ended,
-        is_exhausted,
-      });
+      const planData = {
+        current_plans,
+        current_plan_types,
+        current_plan_revenue_category,
+        has_plan_on_hold,
+      };
+      
+      const isEligible = isEligiblePlan(planData);
+      console.log(`🔍 Plan eligibility for person_id ${person_id}:`, planData, `→ ${isEligible}`);
+      
+      return isEligible;
     });
   } catch (err) {
     console.error(`❌ Error fetching plans for person_id ${person_id}:`, err.response?.data || err.message);
@@ -90,33 +101,20 @@ export async function runMainLogic(accessToken, testEmail = TEST_EMAIL) {
   const coreClient = createPike13Client(accessToken);
   const reportingClient = createReportingClient(accessToken);
 
-  console.log("📡 Calling Core API /desk/people...");
-  const peopleRes = await coreClient.get("/desk/people", {
-    params: {
-      per_page: 50,
-      is_member: true,
-      sort: "-updated_at",
-    },
-  });
+  // Skip Core API - the Reporting API interface has all the filters we need
 
-  let people = peopleRes.data.people;
-  if (testEmail) {
-    people = people.filter((p) => p.email === testEmail);
-    console.log(
-      `🧪 Test mode: filtered to ${people.length} person(s) matching ${testEmail}`
-    );
-  }
+  console.log("📊 Fetching clients with active plans from Reporting API v3...");
+  
+  let allRows = [];
+  let lastKey = null;
+  let hasMore = true;
+  let pageCount = 0;
 
-  console.log(`✅ Retrieved ${people.length} people`);
-  people
-    .slice(0, 5)
-    .forEach((p) =>
-      console.log(`- ${p.first_name} ${p.last_name} (${p.email})`)
-    );
-
-  console.log("📊 Fetching client report from Reporting API v3...");
-  const reportRes = await reportingClient.post("/reports/clients/queries", {
-    data: {
+  while (hasMore) {
+    pageCount++;
+    console.log(`📄 Fetching page ${pageCount}...`);
+    
+    const pageData = {
       type: "report_queries",
       attributes: {
         fields: [
@@ -125,24 +123,59 @@ export async function runMainLogic(accessToken, testEmail = TEST_EMAIL) {
           "full_name",
           "last_visit_date",
           "days_since_last_visit",
+          "current_plans",
+          "has_plan_on_hold",
         ],
-        filter: [["gt", "days_since_last_visit", 10]],
+        filter: [
+          "and",
+          [
+            ["nemp", "current_plans"], // Has current plans (not empty)
+            ["eq", "has_plan_on_hold", "f"], // Not on hold (f = false)
+            ["gt", "days_since_last_visit", 10] // Inactive for 10+ days
+          ]
+        ],
+        page: {
+          limit: 500, // Maximum page size
+        },
       },
-    },
-  });
+    };
 
-  const rows = reportRes.data?.data?.attributes?.rows;
+    // Add starting_after for pagination (except first page)
+    if (lastKey) {
+      pageData.attributes.page.starting_after = lastKey;
+    }
 
-  if (!rows) {
+    const reportRes = await reportingClient.post("/reports/clients/queries", {
+      data: pageData,
+    });
+
+    const pageRows = reportRes.data?.data?.attributes?.rows || [];
+    allRows = allRows.concat(pageRows);
+    
+    hasMore = reportRes.data?.data?.attributes?.has_more || false;
+    lastKey = reportRes.data?.data?.attributes?.last_key;
+    
+    console.log(`📄 Page ${pageCount}: ${pageRows.length} clients (Total so far: ${allRows.length})`);
+    
+    if (hasMore) {
+      console.log(`📄 More pages available, continuing...`);
+    }
+  }
+
+  console.log(`📊 Completed pagination: ${allRows.length} total clients across ${pageCount} pages`);
+  
+  // Use allRows instead of reportRes.data
+  const rows = allRows;
+
+  if (!rows || rows.length === 0) {
     console.error("❌ No rows returned from the report API");
-    console.dir(reportRes.data, { depth: null });
     return;
   }
 
-  console.log(`🗂 Retrieved ${rows.length} inactive clients`);
+  console.log(`🗂 Retrieved ${rows.length} clients with active plans who are inactive`);
 
   const filteredRows = testEmail
-  ? rows.filter((c) => c.values?.email === testEmail)
+  ? rows.filter((c) => c[1] === testEmail)
   : rows;
 
 // Remove "Pike13 Inactive" tag from recently active users
@@ -156,48 +189,46 @@ for (const row of rows) {
   }
 }
 
-// Proceed with sending inactive members to GoHighLevel
+// Proceed with sending clients with active plans who are inactive to GoHighLevel
+console.log(`🔄 Processing ${filteredRows.length} clients with active plans who are inactive...`);
+
+  let processedCount = 0;
+  let skippedIncomplete = 0;
+
 for (const row of filteredRows) {
-  const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
+  const [person_id, email, full_name, last_visit_date, days_since_last_visit, current_plans, has_plan_on_hold] = row;
 
   if (!email || !full_name || days_since_last_visit === undefined) {
     console.warn(`⚠️ Skipping incomplete client:`, row);
+    skippedIncomplete++;
     continue;
   }
 
-  const hasPlan = await checkPlans(reportingClient, person_id);
-  if (!hasPlan) {
-    console.log(`🚫 Skipping ${email} - no valid plan`);
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    console.warn(`⚠️ Skipping invalid email: ${email} (${full_name})`);
+    skippedIncomplete++;
     continue;
   }
 
-  // console.log(`✅ Would send to ${email} (${full_name})`);
+  // All filtering is done by the API query - these clients have active plans and are inactive
+  console.log(`✅ Processing ${email} (${full_name}) - ${days_since_last_visit} days inactive, plans: ${current_plans}`);
+
+  console.log(`✅ Sending to GHL: ${email} (${full_name}) - ${days_since_last_visit} days inactive`);
   await sendToGoHighLevel({
     email,
     full_name,
     days_since_last_visit,
   });
+  processedCount++;
+  
+  // Add a small delay between clients to avoid overwhelming the API
+  await new Promise(resolve => setTimeout(resolve, 100));
 }
 
-for (const row of filteredRows) {
-  const [person_id, email, full_name, last_visit_date, days_since_last_visit] = row;
-
-  if (!email || !full_name || days_since_last_visit === undefined) {
-    console.warn(`⚠️ Skipping incomplete client:`, row);
-    continue;
-  }
-
-const hasPlan = await checkPlans(reportingClient, person_id);
-if (!hasPlan) {
-  console.log(`🚫 Skipping ${email} - no valid plan`);
-  continue;
-}
-
-// console.log(`✅ Would send to ${email} (${full_name})`);
-await sendToGoHighLevel({
-  email,
-  full_name,
-  days_since_last_visit,
-});
-}
+  console.log(`📊 Summary:`);
+  console.log(`   - Total clients with active plans who are inactive: ${filteredRows.length}`);
+  console.log(`   - Skipped (incomplete data): ${skippedIncomplete}`);
+  console.log(`   - Successfully processed: ${processedCount}`);
 }
