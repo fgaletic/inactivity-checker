@@ -52,21 +52,17 @@ export async function sendToGoHighLevel(client) {
     // Add delay to avoid rate limiting
     await delay(500);
     
-    let contactExists = false;
-    let existingContact = null;
-    
     // Check if contact already exists with retry logic
-    try {
-      const searchRes = await retryApiCall(async () => {
-        return await axios.get(
-      `https://rest.gohighlevel.com/v1/contacts/lookup?email=${encodeURIComponent(client.email)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${GHL_API_KEY}`,
-        },
-      }
-    );
-      });
+    const searchRes = await retryApiCall(async () => {
+      return await axios.get(
+        `https://rest.gohighlevel.com/v1/contacts/lookup?email=${encodeURIComponent(client.email)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${GHL_API_KEY}`,
+          },
+        }
+      );
+    });
 
     if (searchRes.data && searchRes.data.contact) {
       console.log(`⚠️ Contact already exists in GHL: ${client.email}`);
@@ -81,30 +77,30 @@ export async function sendToGoHighLevel(client) {
         return;
       }
       
-      // Add the inactive tag to existing tags
-      const updatedTags = [...existingTags, "Pike13 Inactive"];
-      
+      // Add the inactive tag to existing tags (this endpoint only ADDS, does not remove other tags)
       try {
-        await axios.post(
-          `https://rest.gohighlevel.com/v1/contacts/${existingContact.id}/tags`,
-          { tags: ["Pike13 Inactive"] },
-          {
-            headers: {
-              Authorization: `Bearer ${GHL_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        await retryApiCall(async () => {
+          return await axios.post(
+            `https://rest.gohighlevel.com/v1/contacts/${existingContact.id}/tags`,
+            { tags: ["Pike13 Inactive"] },
+            {
+              headers: {
+                Authorization: `Bearer ${GHL_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+        });
         
         console.log(`📬 Added "Pike13 Inactive" tag to existing contact: ${client.full_name} (${client.email})`);
         return;
       } catch (error) {
         console.error(
-          `❌ Failed to add tag to existing contact ${client.email}:`,
+          `❌ Failed to add tag to existing contact ${client.email} after retries:`,
           error.response?.data || error.message
         );
+        return;
       }
-      return;
     }
 
     // Create new contact
@@ -118,8 +114,8 @@ export async function sendToGoHighLevel(client) {
       tags: ["Pike13 Inactive"],
     };
 
-    try {
-      const res = await axios.post(
+    const res = await retryApiCall(async () => {
+      return await axios.post(
         `https://rest.gohighlevel.com/v1/contacts/`,
         payload,
         {
@@ -129,28 +125,20 @@ export async function sendToGoHighLevel(client) {
           },
         }
       );
-        });
+    });
 
-        console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
-      console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
-      return res.data;
-    } catch (error) {
-      console.error(
-          `❌ Failed to create ${client.email} in GHL after retries:`,
-        `❌ Failed to create contact ${client.email} in GHL:`,
-        error.response?.data || error.message
-      );
-        console.error(`   Full error details:`, error.response?.status, error.response?.statusText);
-        
-        // Log the payload that failed for debugging
-        console.error(`   Failed payload:`, JSON.stringify(payload, null, 2));
-      }
-    }
+    console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
+    return res.data;
   } catch (error) {
     console.error(
-      `❌ Error checking if contact exists for ${client.email} after retries:`,
+      `❌ Error in sendToGoHighLevel for ${client.email}:`,
       error.response?.data || error.message
     );
     console.error(`   Full error details:`, error.response?.status, error.response?.statusText);
+    
+    // Log the payload that failed for debugging if it exists
+    if (error.config?.data) {
+      console.error(`   Failed payload:`, error.config.data);
+    }
   }
 }
