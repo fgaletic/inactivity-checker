@@ -69,16 +69,45 @@ export async function sendToGoHighLevel(client) {
       });
 
     if (searchRes.data && searchRes.data.contact) {
-        contactExists = true;
-        existingContact = searchRes.data.contact;
+      console.log(`⚠️ Contact already exists in GHL: ${client.email}`);
+      
+      // Add "Pike13 Inactive" tag to existing contact without removing other tags
+      const existingContact = searchRes.data.contact;
+      const existingTags = existingContact.tags || [];
+      
+      // Check if already has the inactive tag
+      if (existingTags.includes("Pike13 Inactive")) {
+        console.log(`✅ Contact ${client.email} already has "Pike13 Inactive" tag`);
+        return;
       }
-    } catch (lookupError) {
-      // If lookup fails (e.g., invalid email), assume contact doesn't exist
-      console.log(`⚠️ Lookup failed for ${client.email}, assuming new contact:`, lookupError.response?.data?.message || lookupError.message);
-      contactExists = false;
+      
+      // Add the inactive tag to existing tags
+      const updatedTags = [...existingTags, "Pike13 Inactive"];
+      
+      try {
+        await axios.post(
+          `https://rest.gohighlevel.com/v1/contacts/${existingContact.id}/tags`,
+          { tags: ["Pike13 Inactive"] },
+          {
+            headers: {
+              Authorization: `Bearer ${GHL_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        
+        console.log(`📬 Added "Pike13 Inactive" tag to existing contact: ${client.full_name} (${client.email})`);
+        return;
+      } catch (error) {
+        console.error(
+          `❌ Failed to add tag to existing contact ${client.email}:`,
+          error.response?.data || error.message
+        );
+      }
+      return;
     }
 
-    // Create payload before using it
+    // Create new contact
     const payload = {
       email: client.email,
       name: client.full_name,
@@ -89,46 +118,8 @@ export async function sendToGoHighLevel(client) {
       tags: ["Pike13 Inactive"],
     };
 
-    if (contactExists) {
-      // Contact exists - update with tag and custom field
-      const contactId = existingContact.id;
-      
-      console.log(`🔄 Updating existing contact in GHL: ${client.email}`);
-      
-      try {
-        const updateRes = await retryApiCall(async () => {
-          return await axios.put(
-            `https://rest.gohighlevel.com/v1/contacts/${contactId}`,
-            {
-              ...payload,
-              // Merge existing tags with new tag
-              tags: [...(existingContact.tags || []), "Pike13 Inactive"].filter((tag, index, arr) => arr.indexOf(tag) === index) // Remove duplicates
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${GHL_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-        });
-
-        console.log(`📬 Updated existing contact in GHL: ${client.full_name} (${client.email})`);
-        return updateRes.data;
-      } catch (error) {
-        console.error(
-          `❌ Failed to update ${client.email} in GHL after retries:`,
-          error.response?.data || error.message
-        );
-        console.error(`   Full error details:`, error.response?.status, error.response?.statusText);
-      }
-    } else {
-      // Contact doesn't exist - create new one
-      console.log(`➕ Creating new contact in GHL: ${client.email}`);
-      
-      try {
-        const res = await retryApiCall(async () => {
-          return await axios.post(
+    try {
+      const res = await axios.post(
         `https://rest.gohighlevel.com/v1/contacts/`,
         payload,
         {
@@ -141,10 +132,12 @@ export async function sendToGoHighLevel(client) {
         });
 
         console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
+      console.log(`📬 Created new contact in GHL: ${client.full_name} (${client.email})`);
       return res.data;
     } catch (error) {
       console.error(
           `❌ Failed to create ${client.email} in GHL after retries:`,
+        `❌ Failed to create contact ${client.email} in GHL:`,
         error.response?.data || error.message
       );
         console.error(`   Full error details:`, error.response?.status, error.response?.statusText);
