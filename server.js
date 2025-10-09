@@ -95,7 +95,6 @@ app.listen(PORT, async () => {
 
     if (token) {
       console.log("🔐 Using saved token. Skipping login.");
-      await runMainLogic(token);
       await startScheduledTasks();
     } else {
       console.log("🔑 No token found. Please authorize via browser...");
