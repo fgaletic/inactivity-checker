@@ -98,15 +98,10 @@ app.listen(PORT, async () => {
     if (token) {
       console.log("🔐 Using saved token. Starting scheduler...");
       
-      // Run initial sync on startup only in production (Koyeb)
-      const runInitialSync = process.env.NODE_ENV === 'production' || process.env.RUN_ON_STARTUP === 'true';
-      await startScheduledTasks(runInitialSync);
-      
-      if (runInitialSync) {
-        console.log("✅ Startup sync will run now");
-      } else {
-        console.log("ℹ️ Skipping startup sync (will run at scheduled time)");
-      }
+      // TEMPORARILY DISABLED - investigating tag removal issue
+      // const runInitialSync = process.env.NODE_ENV === 'production' || process.env.RUN_ON_STARTUP === 'true';
+      // await startScheduledTasks(runInitialSync);
+      console.log("⚠️ SCHEDULER DISABLED - investigating tag removal issue");
     } else {
       console.log("🔑 No token found. Please authorize via browser...");
       if (process.env.NODE_ENV !== 'production') {

@@ -103,7 +103,9 @@ export async function sendToGoHighLevel(client) {
       }
     }
 
-    // Create new contact
+    // Contact doesn't exist - create new contact with only Pike13 Inactive tag
+    console.log(`📝 Creating new contact: ${client.full_name} (${client.email})`);
+
     const payload = {
       email: client.email,
       name: client.full_name,
@@ -111,7 +113,7 @@ export async function sendToGoHighLevel(client) {
         "dayssincelastvisit": client.days_since_last_visit,
       },
       locationId: GHL_LOCATION_ID,
-      tags: ["Pike13 Inactive"],
+      tags: ["Pike13 Inactive"], // Only Pike13 Inactive for new contacts
     };
 
     const res = await retryApiCall(async () => {
