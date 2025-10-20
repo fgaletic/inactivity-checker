@@ -1,74 +1,135 @@
+# Method3 Fitness - Pike13 Inactivity Checker
 
+Automatically sync inactive clients from Pike13 to GoHighLevel with the "Pike13 Inactive" tag.
 
-# Inactivity Checker Middleware (Starter Project)
+## 🔄 How It Works
 
-This Node.js middleware tool helps automate the process of monitoring user inactivity and triggering actions such as notifications, tag updates, and CRM integrations. Out of the box, it supports GoHighLevel and Pike13, but its modular design makes it easy to adapt for other CRMs or business platforms.
+1. **Daily Sync at 8 AM PT (4 PM UTC)**
+   - Fetches all clients with active plans from Pike13
+   - **Adds** "Pike13 Inactive" tag to clients inactive for 10+ days
+   - **Removes** "Pike13 Inactive" tag from clients who become active (≤10 days)
+   - Preserves all other tags on the contact
 
-The project is intended as a starter template for developers and businesses who want to build custom inactivity workflows, automate retention efforts, or connect with multiple external services. You can expand or modify the logic to suit your own requirements.
+2. **Tag Management**
+   - ✅ Adding tags: Uses `POST /contacts/{id}/tags` - **only adds**, never removes other tags
+   - ✅ Removing tags: Uses `POST /contacts/{id}/tags.remove` - **only removes "Pike13 Inactive"**
+   - ✅ Safe: Your other tags are never touched!
 
+## 🚀 Deployment (Koyeb)
 
+### Required Environment Variables
 
-## Features
+```bash
+# Pike13 API
+PIKE13_API_TOKEN=your_pike13_token
+PIKE13_CLIENT_ID=your_client_id
+PIKE13_CLIENT_SECRET=your_client_secret
+PIKE13_REDIRECT_URI=your_redirect_uri
 
-- Checks for inactive users based on customizable logic
-- Sends email notifications if a contact exists
-- Removes inactive tags when users become active
-- Integrates with GoHighLevel CRM (can be adapted for Pike13 and other CRMs)
-- Scheduled tasks for regular inactivity checks
-- API endpoints for widget and external integrations
+# GoHighLevel API
+GHL_API_KEY=your_ghl_api_key
+GHL_LOCATION_ID=your_location_id
 
+# Environment
+NODE_ENV=production
+PORT=8000
+```
 
+### Deployment Steps
 
-## File Overview
+1. Push code to GitHub
+2. Connect Koyeb to your GitHub repo
+3. Set environment variables in Koyeb dashboard
+4. Deploy!
 
-- `api.js`: API endpoints for widget and external integrations
-- `index.js`: Main entry point
-- `locations.js`: Location-related logic
-- `logic.js`: Core inactivity checking logic
-- `removeInactiveTagIfActive.js`: Removes inactive tag if user is active
-- `scheduler.js`: Schedules regular inactivity checks
-- `sendEmailIfContactExists.js`: Sends email notifications
-- `sendToGoHighLevel.js`: Integrates with GoHighLevel CRM (can be extended for other CRMs)
-- `server.js`: Express server setup
-- `token.json`: Stores authentication tokens
-- `widget.html`: Frontend widget
+The scheduler will:
+- Start automatically when the app deploys
+- Run an initial sync on startup (in production mode)
+- Run daily at 8 AM PT (4 PM UTC)
 
+## 🧪 Testing & Manual Sync
 
+### Run Manual Sync (Local)
 
-## Setup
+```bash
+# Normal sync
+npm run sync
 
-1. **Install dependencies:**
+# Dry run (no changes to GoHighLevel)
+DRY_RUN=true npm run sync
+```
 
-   ```bash
-   npm install
-   ```
+### Trigger Sync via API
 
-2. **Configure environment:**
-   - Add necessary environment variables (API keys, CRM credentials, email settings, etc.)
-   - Update `token.json` with authentication tokens
+```bash
+curl -X POST https://your-app.koyeb.app/sync-inactive-clients
+```
 
-3. **Run the application:**
+### Health Check
 
-   ```bash
-   node index.js
-   ```
+```bash
+curl https://your-app.koyeb.app/health
+```
 
+## 📊 What Gets Synced
 
+### Clients Added to GoHighLevel
+- Have active plans in Pike13
+- Plan is not on hold
+- Inactive for 10+ days (haven't visited in 10+ days)
 
-## Usage
+### Tag Removed
+- Clients who become active again (≤10 days since last visit)
 
-- Access the API endpoints via the configured server port
-- Integrate the widget using `widget.html`
-- Scheduled tasks run automatically based on configuration in `scheduler.js`
+## 🛠️ Development
 
+### Local Setup
 
+```bash
+# Install dependencies
+npm install
 
-## Contributing
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your credentials
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+# Start server
+npm start
 
+# Run manual sync
+npm run sync
+```
 
+### Project Structure
 
-## License
+```
+├── server.js              # Express server & startup
+├── scheduler.js           # Cron job scheduler
+├── logic.js              # Main business logic
+├── api.js                # Pike13 API client
+├── sendToGoHighLevel.js  # GHL tag management
+├── removeInactiveTagIfActive.js  # Tag removal
+├── manual-sync.js        # Manual sync script
+└── locations.js          # GHL location helpers
+```
 
-MIT
+## 📝 Logs
+
+Check Koyeb logs to see:
+- When scheduler starts
+- Daily sync execution (8 AM PT)
+- How many clients processed
+- Any errors
+
+## 🔐 Security
+
+- Never commit `.env` or `token.json`
+- Use environment variables in production
+- Tokens are stored securely in Koyeb
+
+## 📞 Support
+
+For issues or questions, check the logs first:
+1. Koyeb deployment logs
+2. Look for error messages or failed API calls
+3. Verify environment variables are set correctly
